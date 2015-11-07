@@ -33,13 +33,13 @@ int main(void) {
 	SENSORS_Init();
 	// przerwania od enkoderow
 	Encoders_Init();
-	// czas do PID
-	PID_Init();
 	// mostek H
 	HBridge_Init();
 	// inicjalizacja LSM330 i ustawienie czulosci
 	LSM330_Init();
 	LSM330_Conf(ACC_2g, GYRO_2000dps);
+	// czas do PID
+	PID_Init();
 
 	// joystick...
 	/*GPIO_InitTypeDef GPIO_InitStruct;
@@ -261,8 +261,8 @@ void SENSORS_Init(void) {
 	// definiujemy kolejnosc wybranych kanalow
 	// 0 Bok Lewy		ADC6 -> ADC_Channel_15
 	// 1 Bok Prawy		ADC1 -> ADC_Channel_10
-	// 2 Przï¿½d Lewy		ADC3 -> ADC_Channel_14
-	// 3 Przï¿½d Prawy	ADC4 -> ADC_Channel_11
+	// 2 PrzĂŻÂżÂ˝d Lewy		ADC3 -> ADC_Channel_14
+	// 3 PrzĂŻÂżÂ˝d Prawy	ADC4 -> ADC_Channel_11
 	// 4 Skos Lewy		ADC5 -> ADC_Channel_13
 	// 5 Skos Prawy		ADC1 -> ADC_Channel_12
 	/*
@@ -401,6 +401,7 @@ void HBridge_Init(void) {
     TIM_TimeBaseInit(TIM1, &TIM_InitStruct);
 
     TIM_OCInitTypeDef TIM_OCInitStruct;
+    TIM_OCStructInit(&TIM_OCInitStruct); // to zapobiega problemowi w Eclipse
 	TIM_OCInitStruct.TIM_OCMode = TIM_OCMode_PWM1;
 	TIM_OCInitStruct.TIM_Pulse = 0;
 	TIM_OCInitStruct.TIM_OutputState = TIM_OutputState_Enable;
@@ -695,7 +696,7 @@ void TIM3_IRQHandler(void) {
 			float dtermenc=errorenc-errorlastenc;
 			itermenc+=errorenc;
 			clamp_iterm(&itermenc, 30);
-			//speedTrans=(120.0 * errorenc + 20.0*itermenc + 2.0*(dtermenc)); dziaï¿½a, ale polizg
+			//speedTrans=(120.0 * errorenc + 20.0*itermenc + 2.0*(dtermenc)); dziaĂŻÂżÂ˝a, ale polizg
 			speedTrans=(80.0 * errorenc + 12.0*itermenc + 2.0*(dtermenc));
 			errorlastenc=errorenc;
 
@@ -784,7 +785,7 @@ void TIM3_IRQHandler(void) {
 	}
 
 
-	//przywrÃ³cenie stanu diod:
+	//przywrĂ�Âłcenie stanu diod:
 	GPIO_WriteBit(GPIOB, GPIO_Pin_11, statePL);
 	GPIO_WriteBit(GPIOA, GPIO_Pin_5, statePR);
 	GPIO_WriteBit(GPIOB, GPIO_Pin_10, stateBL);
