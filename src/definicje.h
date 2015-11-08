@@ -124,6 +124,8 @@ extern int32_t destR;
 extern int32_t errorlastL;
 extern int32_t errorlastR;
 
+extern uint8_t sensors_state;
+
 // definicje do latwego wlaczania i wylaczania diod od scian
 #define S_BL ADC_Channel_15
 #define S_BR ADC_Channel_10
