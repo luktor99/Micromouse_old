@@ -28,7 +28,7 @@ int main(void) {
 	// inicjalizacja UARTa (Bluetooth)
 	UART_Init();
 	// inicjalizacja wyswietlacza
-	//OLED_Init();
+	OLED_Init();
 	// inicjalizacja czujnikow zblizeniowych i ogolnie ADC
 	SENSORS_Init();
 	// przerwania od enkoderow
@@ -60,36 +60,40 @@ int main(void) {
 
 	while (1)
 	{
+		//podczas jazdy:
+		//if(!oled_state) {
+		if(0) {
+			// odczytaj czujniki
+			if(sensors_state) {
+				readSP();
+				//readSS();
+				readSB();
+				avgcalc();
+			}
+			if(send) {
+				//sprintf(buffer, "err*1000: %d\n\rgyroint: %d\n\r", (int32_t)(errorlastwallrot*1000.0), (int32_t)gyroint);
+				sprintf(buffer, "BL: %d\n\rBR: %d\n\r", (int32_t)((avgBL)*1000.0), (int32_t)((avgBR)*1000.0));
+				UART_Send();
+				send=0;
+			}
 
-		/*sprintf(buffer1, "Ax %d", LSM330_GetAccX());
-		sprintf(buffer2, "Ay %d", LSM330_GetAccY());
-		sprintf(buffer3, "Az %d", LSM330_GetAccZ());
-		sprintf(buffer4, "Gx %d", LSM330_GetGyroX());
-		sprintf(buffer5, "Gy %d", LSM330_GetGyroY());
-		sprintf(buffer6, "Gz %d", LSM330_GetGyroZ());
-		// odswiezenie wyswietlacza
-		OLED_buff_LiPo();
-		OLED_Refresh();*/
+			mi=3000;
+			while(mi--);
 
-
-		// odczytaj czujniki
-		if(sensors_state) {
-			readSP();
-			//readSS();
-			readSB();
-			avgcalc();
+			mj++;
 		}
-        if(send) {
-        	//sprintf(buffer, "err*1000: %d\n\rgyroint: %d\n\r", (int32_t)(errorlastwallrot*1000.0), (int32_t)gyroint);
-        	sprintf(buffer, "BL: %d\n\rBR: %d\n\r", (int32_t)((avgBL)*1000.0), (int32_t)((avgBR)*1000.0));
-        	UART_Send();
-			send=0;
-        }
-
-		mi=3000;
-		while(mi--);
-
-		mj++;
+		// a to podczas uzywania OLEDa:
+		else {
+			sprintf(buffer1, "Ax %d", LSM330_GetAccX());
+			sprintf(buffer2, "Ay %d", LSM330_GetAccY());
+			sprintf(buffer3, "Az %d", LSM330_GetAccZ());
+			sprintf(buffer4, "Gx %d", LSM330_GetGyroX());
+			sprintf(buffer5, "Gy %d", LSM330_GetGyroY());
+			sprintf(buffer6, "Gz %d", LSM330_GetGyroZ());
+			// odswiezenie wyswietlacza
+			OLED_buff_LiPo();
+			OLED_Refresh();
+		}
 	}
 }
 void UART_Init(void) {

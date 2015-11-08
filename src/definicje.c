@@ -82,3 +82,7 @@ int32_t destL=0;
 int32_t destR=0;
 int32_t errorlastL=0;
 int32_t errorlastR=0;
+
+char buffer[50], bufferLiPo1[14], bufferLiPo2[7], bufferCharge[20];
+char bufferAX[20], bufferAY[20], bufferAZ[20], bufferGX[20], bufferGY[20], bufferGZ[20];
+char buffer1[10], buffer2[10], buffer3[10], buffer4[10], buffer5[10], buffer6[10];
