@@ -86,6 +86,7 @@ int32_t errorlastL=0;
 int32_t errorlastR=0;
 
 uint8_t sensors_state=0;
+volatile uint8_t PID_enabled=0;
 
 char buffer[50], bufferLiPo1[14], bufferLiPo2[7], bufferCharge[20];
 char bufferAX[20], bufferAY[20], bufferAZ[20], bufferGX[20], bufferGY[20], bufferGZ[20];
@@ -399,9 +400,9 @@ void PID_Init(void) {
 	NVIC_InitStruct.NVIC_IRQChannelSubPriority = 1;
 	NVIC_InitStruct.NVIC_IRQChannelCmd = ENABLE;
 	NVIC_Init(&NVIC_InitStruct);
-
-    //TIM_Cmd(TIM3, ENABLE);
+    TIM_Cmd(TIM3, ENABLE);
     TIM3->CNT = 0;
+    PID_enabled=0;
 }
 void setMotors(int32_t pR, int32_t pL) {
 	uint32_t absR=abs(pR);
@@ -533,13 +534,15 @@ void PID_On(void) {
 	itermR=0.0;
     TIM3->CNT = 0;
     TIM_Cmd(TIM3, ENABLE);
+    PID_enabled=1;
 
     gyrodest=gyroint;
 
     sensors_state=1;
 }
 void PID_Off(void) {
-    TIM_Cmd(TIM3, DISABLE);
+    //TIM_Cmd(TIM3, DISABLE);
+    PID_enabled=0;
     setMotors(0,0);
 
 	speedTrans=0.0;

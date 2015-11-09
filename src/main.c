@@ -13,6 +13,15 @@ uint8_t send=0;
 
 //------
 
+//joystick
+#define JOYSTICK_DEBOUNCE_x2ms 100
+uint8_t UP_count=0, DOWN_count=0, LEFT_count=0, RIGHT_count=0, OK_count=0;
+uint32_t counter_2ms=0;
+uint16_t joystick_debounce1=0; joystick_debounce2=0;
+
+uint8_t oled_state=1;
+
+
 int main(void) {
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART3, ENABLE);
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1, ENABLE);
@@ -41,13 +50,52 @@ int main(void) {
 	PID_Init();
 
 	// joystick...
-	/*GPIO_InitTypeDef GPIO_InitStruct;
-	GPIO_InitStruct.GPIO_Pin = GPIO_Pin_6 | GPIO_Pin_7;
+	// EXTI9_5_IRQHandler():
+	// PC6 - DOL
+	// PC7 - PRAWO
+	// PC8 - GORA
+	// EXTI15_1_IRQHandler():
+	// PA11 - LEWO
+	// PA12 - OK
+	GPIO_InitTypeDef GPIO_InitStruct;
+	GPIO_InitStruct.GPIO_Pin = GPIO_Pin_6 | GPIO_Pin_7 | GPIO_Pin_8;
 	GPIO_InitStruct.GPIO_Mode = GPIO_Mode_IPU;
-	GPIO_Init(GPIOC, &GPIO_InitStruct);*/
+	GPIO_Init(GPIOC, &GPIO_InitStruct);
+	GPIO_InitStruct.GPIO_Pin = GPIO_Pin_11 | GPIO_Pin_12;
+	GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+	///------------------------------------
+
+	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_1);
+
+	NVIC_InitTypeDef NVIC_InitStruct;
+	NVIC_InitStruct.NVIC_IRQChannel = EXTI9_5_IRQn;
+	NVIC_InitStruct.NVIC_IRQChannelPreemptionPriority = 1;
+	NVIC_InitStruct.NVIC_IRQChannelSubPriority = 1;
+	NVIC_InitStruct.NVIC_IRQChannelCmd = ENABLE;
+	NVIC_Init(&NVIC_InitStruct);
+	NVIC_InitStruct.NVIC_IRQChannel = EXTI15_10_IRQn;
+	NVIC_InitStruct.NVIC_IRQChannelSubPriority = 2;
+	NVIC_Init(&NVIC_InitStruct);
+
+	GPIO_EXTILineConfig(GPIO_PortSourceGPIOC, GPIO_PinSource6);
+	GPIO_EXTILineConfig(GPIO_PortSourceGPIOC, GPIO_PinSource7);
+	GPIO_EXTILineConfig(GPIO_PortSourceGPIOC, GPIO_PinSource8);
+	GPIO_EXTILineConfig(GPIO_PortSourceGPIOA, GPIO_PinSource11);
+	GPIO_EXTILineConfig(GPIO_PortSourceGPIOA, GPIO_PinSource12);
+
+	EXTI_InitTypeDef EXTI_InitStruct;
+	EXTI_InitStruct.EXTI_Line = EXTI_Line6 | EXTI_Line7 | EXTI_Line8 | EXTI_Line11 | EXTI_Line12;
+	EXTI_InitStruct.EXTI_Mode = EXTI_Mode_Interrupt;
+	EXTI_InitStruct.EXTI_Trigger = EXTI_Trigger_Falling;
+	EXTI_InitStruct.EXTI_LineCmd = ENABLE;
+	EXTI_Init(&EXTI_InitStruct);
+
+	///------------------------------------
+
+
 
 	reportbattery();
-
 	sprintf(buffer, "Restarted\n\r");
 	UART_Send();
 
@@ -55,13 +103,10 @@ int main(void) {
 	// -------------
 	uint32_t mi = 0, mj = 0;
 
-	//calibrate_gyro();
-
 	while (1)
 	{
 		//podczas jazdy:
-		//if(!oled_state) {
-		if(0) {
+		if(!oled_state) {
 			// odczytaj czujniki
 			if(sensors_state) {
 				readSP();
@@ -69,12 +114,12 @@ int main(void) {
 				readSB();
 				avgcalc();
 			}
-			if(send) {
+			/*if(send) {
 				//sprintf(buffer, "err*1000: %d\n\rgyroint: %d\n\r", (int32_t)(errorlastwallrot*1000.0), (int32_t)gyroint);
 				sprintf(buffer, "BL: %d\n\rBR: %d\n\r", (int32_t)((avgBL)*1000.0), (int32_t)((avgBR)*1000.0));
 				UART_Send();
 				send=0;
-			}
+			}*/
 
 			mi=3000;
 			while(mi--);
@@ -83,12 +128,14 @@ int main(void) {
 		}
 		// a to podczas uzywania OLEDa:
 		else {
-			sprintf(buffer1, "Ax %d", LSM330_GetAccX());
-			sprintf(buffer2, "Ay %d", LSM330_GetAccY());
-			sprintf(buffer3, "Az %d", LSM330_GetAccZ());
-			sprintf(buffer4, "Gx %d", LSM330_GetGyroX());
-			sprintf(buffer5, "Gy %d", LSM330_GetGyroY());
-			sprintf(buffer6, "Gz %d", LSM330_GetGyroZ());
+			sprintf(buffer1, "GORA %d", UP_count);
+			sprintf(buffer2, "DOL %d", DOWN_count);
+			sprintf(buffer3, "LEWO %d", LEFT_count);
+			sprintf(buffer4, "PRAWO %d", RIGHT_count);
+			sprintf(buffer5, "OK %d", OK_count);
+			sprintf(buffer6, "T %d", counter_2ms*2/1000);
+			//sprintf(buffer6, "Gz %d", LSM330_GetGyroZ());
+
 			// odswiezenie wyswietlacza
 			OLED_buff_LiPo();
 			OLED_Refresh();
@@ -109,7 +156,7 @@ void USART3_IRQHandler(void)
         	counterUART=0;
         }*/
 
-        if(data=='g') {sensors_state=1; calibrate_gyro(); sprintf(buffer, "GyroAvg: %d.%d\n\r", (int)gyroavg, (gyroavg-(int)(gyroavg))*100); UART_Send();}
+        if(data=='g') {sensors_state=1; calibrate_gyro(); sprintf(buffer, "GyroAvg: %d\n\r", (int)gyroavg); UART_Send();}
         if(data=='9') {PID_On(); movescounter=0; movesstate=1;}
         if(data=='0') {PID_Off(); movescounter=0; movesstate=0;}
         if(data=='b') reportbattery();
@@ -219,6 +266,7 @@ void OLED_Draw(void) {
 	u8g_SetColorIndex(&u8g, 0);
 	//u8g_DrawPixel(28, 14);
 	u8g_DrawStr(&u8g, 1, 6, "uHulk");
+	u8g_DrawStr(&u8g, 1, 8, "l");
 	u8g_DrawStr(&u8g, 30, 6, bufferLiPo1);
 	u8g_DrawStr(&u8g, 60, 6, bufferLiPo2);
 	u8g_DrawStr(&u8g, 110, 6, bufferCharge);
@@ -232,189 +280,251 @@ inline void OLED_Refresh(void) {
 }
 // Przerwanie 500Hz
 void TIM3_IRQHandler(void) {
-	//wylaczenie diod jakby co:
-	char statePL = GPIO_ReadOutputDataBit(GPIOB, GPIO_Pin_11);
-	char statePR = GPIO_ReadOutputDataBit(GPIOA, GPIO_Pin_5);
-	char stateBL = GPIO_ReadOutputDataBit(GPIOB, GPIO_Pin_10);
-	char stateBR = GPIO_ReadOutputDataBit(GPIOA, GPIO_Pin_4);
-	PL_OFF;
-	PR_OFF;
-	BL_OFF;
-	BR_OFF;
-
-
 	if(TIM_GetITStatus(TIM3, TIM_IT_Update) != RESET) {
 		TIM_ClearITPendingBit(TIM3, TIM_IT_Update);
 
-		// calkowanie gyro
-		float reading=(float)LSM330_GetGyroZ()-gyroavg;
-		gyroint+=(reading + 2.*gyroprev[0] + 2.*gyroprev[1] + gyroprev[2])/6.;
-		gyroprev[2]=gyroprev[1];
-		gyroprev[1]=gyroprev[0];
-		gyroprev[0]=reading;
+		counter_2ms++;
+		if(joystick_debounce1>0) joystick_debounce1--;
+		if(joystick_debounce2>0) joystick_debounce2--;
+
+		//czasem przerwanie tylko odlicza czas:
+		if(PID_enabled) {
+
+			//wylaczenie diod jakby co:
+			char statePL = GPIO_ReadOutputDataBit(GPIOB, GPIO_Pin_11);
+			char statePR = GPIO_ReadOutputDataBit(GPIOA, GPIO_Pin_5);
+			char stateBL = GPIO_ReadOutputDataBit(GPIOB, GPIO_Pin_10);
+			char stateBR = GPIO_ReadOutputDataBit(GPIOA, GPIO_Pin_4);
+			PL_OFF;
+			PR_OFF;
+			BL_OFF;
+			BR_OFF;
+
+			// calkowanie gyro
+			float reading=(float)LSM330_GetGyroZ()-gyroavg;
+			gyroint+=(reading + 2.*gyroprev[0] + 2.*gyroprev[1] + gyroprev[2])/6.;
+			gyroprev[2]=gyroprev[1];
+			gyroprev[1]=gyroprev[0];
+			gyroprev[0]=reading;
 
 
-		//Profiler();
-		float wallfix=0.0;
-		// dorownywanie do sciany
-		/*if(avgSL>WALL_PIDTHRESH && avgSR>WALL_PIDTHRESH && avgBL>30.0 && avgBR>30.0) {
-			wallfix=10000.0*(wallBcalib-(avgSR-avgSL)/(avgSR+avgSL+0.0000001));
-		} else */
+			//Profiler();
+			float wallfix=0.0;
+			// dorownywanie do sciany
+			/*if(avgSL>WALL_PIDTHRESH && avgSR>WALL_PIDTHRESH && avgBL>30.0 && avgBR>30.0) {
+				wallfix=10000.0*(wallBcalib-(avgSR-avgSL)/(avgSR+avgSL+0.0000001));
+			} else */
 
-		#define K_WALL 100.0
-		if(walllast==W_LEFT) {
-			if(avgBL>30.0) {
-				wallfix=K_WALL*(wallBcalibL-avgBL);
-				walllast=W_LEFT;
-			} else if(avgBR>30.0) {
-				wallfix=-K_WALL*(wallBcalibR-avgBR);
-				walllast=W_RIGHT;
-			}
-		} else {
-			if(avgBR>30.0) {
-				wallfix=-K_WALL*(wallBcalibR-avgBR);
-				walllast=W_RIGHT;
-			} else if(avgBL>30.0) {
-				wallfix=K_WALL*(wallBcalibL-avgBL);
-				walllast=W_LEFT;
-			}
-		}
-
-
-		if(state==S_FORWARD) {
-			int32_t sum=EncodersL+EncodersR;
-			if(sum<sum_thresh1) {
-				speedTrans=PWM_ZERO+(CELL_VMAX)*((sum-sum_start)/sum_thresh1);
-			} else
-			if(sum<sum_thresh2) {
-				speedTrans=PWM_ZERO+CELL_VMAX;
+			#define K_WALL 100.0
+			if(walllast==W_LEFT) {
+				if(avgBL>30.0) {
+					wallfix=K_WALL*(wallBcalibL-avgBL);
+					walllast=W_LEFT;
+				} else if(avgBR>30.0) {
+					wallfix=-K_WALL*(wallBcalibR-avgBR);
+					walllast=W_RIGHT;
+				}
 			} else {
-				//czy jest sciana?
-				if((wallPcalibtrans-(avgPR+avgPL))<33.0) { //95.0
-					state=S_BRAKEWALL;
-					wallfix=0.0;
+				if(avgBR>30.0) {
+					wallfix=-K_WALL*(wallBcalibR-avgBR);
+					walllast=W_RIGHT;
+				} else if(avgBL>30.0) {
+					wallfix=K_WALL*(wallBcalibL-avgBL);
+					walllast=W_LEFT;
+				}
+			}
+
+
+			if(state==S_FORWARD) {
+				int32_t sum=EncodersL+EncodersR;
+				if(sum<sum_thresh1) {
+					speedTrans=PWM_ZERO+(CELL_VMAX)*((sum-sum_start)/sum_thresh1);
+				} else
+				if(sum<sum_thresh2) {
+					speedTrans=PWM_ZERO+CELL_VMAX;
 				} else {
-					state=S_BRAKEENC;
-				}
-			}
-		} else if(state==S_ROTATION) {
-			state_timer++;
-			if(state_timer>100) { //0.4s
-				state=S_STOP;
-				state_timer=0;
-			}
-		} else if(state==S_BRAKEWALL) {
-			float errorwalltrans=wallPcalibtrans-(avgPR+avgPL);
-			float dtermtrans=errorwalltrans-errorlastwalltrans;
-			itermwalltrans+=errorwalltrans;
-			clamp_iterm(&itermwalltrans, 100);
-			speedTrans=(120.0 * errorwalltrans + 1.0*itermwalltrans - 6.0*(dtermtrans));
-			errorlastwalltrans=errorwalltrans;
-
-			state_timer++;
-
-			if(state_timer>50 && fabs(errorwalltrans)<1.0 && fabs(dtermtrans)<1.0) {
-				state=S_WALLALIGN;
-				state_timer=0;
-			}
-		}  else if(state==S_BRAKEENC) {
-			int32_t sum=EncodersL+EncodersR;
-			float errorenc=sum_end-sum;
-			float dtermenc=errorenc-errorlastenc;
-			itermenc+=errorenc;
-			clamp_iterm(&itermenc, 30);
-			//speedTrans=(120.0 * errorenc + 20.0*itermenc + 2.0*(dtermenc)); dziaĂŻÂżÂ˝a, ale polizg
-			speedTrans=(80.0 * errorenc + 12.0*itermenc + 2.0*(dtermenc));
-			errorlastenc=errorenc;
-
-			float brakelimit=PWM_ZERO+(1-sum/sum_end)*CELL_VMAX;
-			if(speedTrans>brakelimit) speedTrans=brakelimit;
-			else if(speedTrans<-brakelimit) speedTrans=-brakelimit;
-
-			state_timer++;
-			if(state_timer>100 && abs(errorenc)==0 && abs(dtermenc)==0) {
-				state=S_STOP;
-				state_timer=0;
-			}
-		} else if(state==S_WALLALIGN) {
-			float errorwallrot=(avgPR-avgPL)/(avgPR+avgPL+0.000001)-wallPcalibrot;
-			gyroint+=7000.0*errorwallrot;
-
-			state_timer++;
-			if(state_timer>50 && abs(errorwallrot)<=0.0001) {
-				state=S_STOP;
-				state_timer=0;
-			}
-		} else if(state==S_STOP) {
-			speedTrans=0.0;
-			wallfix=0.0;
-
-			if(movesstate==1) {
-				if(moves[movescounter]==M_STOP) {
-					movescounter=0;
-					movesstate=0;
-				} else if(moves[movescounter]==M_F1 || moves[movescounter]==M_F2 || moves[movescounter]==M_F3 || moves[movescounter]==M_F4 || moves[movescounter]==M_F5 || moves[movescounter]==M_F6 || moves[movescounter]==M_F7 || moves[movescounter]==M_F8 || moves[movescounter]==M_F9 || moves[movescounter]==M_F10 || moves[movescounter]==M_F11 || moves[movescounter]==M_F12 || moves[movescounter]==M_F13 || moves[movescounter]==M_F14 || moves[movescounter]==M_F15 || moves[movescounter]==M_F16) {
-					CELL_VMAX=11000;//13500
-					switch(moves[movescounter]) {
-						case M_F1: CELL_VMAX=5000; forward(1); break;//5000
-						case M_F2: CELL_VMAX=7000; forward(2); break;//8000
-						case M_F3: CELL_VMAX=9000; forward(3); break;//12000
-						case M_F4: forward(4); break;
-						case M_F5: forward(5); break;
-						case M_F6: forward(6); break;
-						case M_F7: forward(7); break;
-						case M_F8: forward(8); break;
-						case M_F9: forward(9); break;
-						case M_F10: forward(10); break;
-						case M_F11: forward(11); break;
-						case M_F12: forward(12); break;
-						case M_F13: forward(13); break;
-						case M_F14: forward(14); break;
-						case M_F15: forward(15); break;
-						case M_F16: forward(16); break;
-					}
-					movescounter++;
-				} else if(moves[movescounter]==M_L) {
-					gyrodest+=GYRO_90;
-					state=S_ROTATION;
-					movescounter++;
-				} else if(moves[movescounter]==M_LL) {
-					gyrodest+=2.0*GYRO_90;
-					state=S_ROTATION;
-					movescounter++;
-				} else if(moves[movescounter]==M_R) {
-					gyrodest-=GYRO_90;
-					state=S_ROTATION;
-					movescounter++;
-				} else if(moves[movescounter]==M_SCAN) {
-					//moves[0]=M_SCAN;
-					movesstate=nextscanstep(); // 0 albo 1 w zaleznosci czy kontynuujemy
-					movescounter=0;
-
-
-
-					if(movesstate) USART_SendData(USART3, 's');
-					else {
-						sprintf(buffer, "\n\rKoniec!\n\r");
-						UART_Send();
+					//czy jest sciana?
+					if((wallPcalibtrans-(avgPR+avgPL))<33.0) { //95.0
+						state=S_BRAKEWALL;
+						wallfix=0.0;
+					} else {
+						state=S_BRAKEENC;
 					}
 				}
+			} else if(state==S_ROTATION) {
+				state_timer++;
+				if(state_timer>100) { //0.4s
+					state=S_STOP;
+					state_timer=0;
+				}
+			} else if(state==S_BRAKEWALL) {
+				float errorwalltrans=wallPcalibtrans-(avgPR+avgPL);
+				float dtermtrans=errorwalltrans-errorlastwalltrans;
+				itermwalltrans+=errorwalltrans;
+				clamp_iterm(&itermwalltrans, 100);
+				speedTrans=(120.0 * errorwalltrans + 1.0*itermwalltrans - 6.0*(dtermtrans));
+				errorlastwalltrans=errorwalltrans;
+
+				state_timer++;
+
+				if(state_timer>50 && fabs(errorwalltrans)<1.0 && fabs(dtermtrans)<1.0) {
+					state=S_WALLALIGN;
+					state_timer=0;
+				}
+			}  else if(state==S_BRAKEENC) {
+				int32_t sum=EncodersL+EncodersR;
+				float errorenc=sum_end-sum;
+				float dtermenc=errorenc-errorlastenc;
+				itermenc+=errorenc;
+				clamp_iterm(&itermenc, 30);
+				//speedTrans=(120.0 * errorenc + 20.0*itermenc + 2.0*(dtermenc)); dziaĂŻÂżÂ˝a, ale polizg
+				speedTrans=(80.0 * errorenc + 12.0*itermenc + 2.0*(dtermenc));
+				errorlastenc=errorenc;
+
+				float brakelimit=PWM_ZERO+(1-sum/sum_end)*CELL_VMAX;
+				if(speedTrans>brakelimit) speedTrans=brakelimit;
+				else if(speedTrans<-brakelimit) speedTrans=-brakelimit;
+
+				state_timer++;
+				if(state_timer>100 && abs(errorenc)==0 && abs(dtermenc)==0) {
+					state=S_STOP;
+					state_timer=0;
+				}
+			} else if(state==S_WALLALIGN) {
+				float errorwallrot=(avgPR-avgPL)/(avgPR+avgPL+0.000001)-wallPcalibrot;
+				gyroint+=7000.0*errorwallrot;
+
+				state_timer++;
+				if(state_timer>50 && abs(errorwallrot)<=0.0001) {
+					state=S_STOP;
+					state_timer=0;
+				}
+			} else if(state==S_STOP) {
+				speedTrans=0.0;
+				wallfix=0.0;
+
+				if(movesstate==1) {
+					if(moves[movescounter]==M_STOP) {
+						movescounter=0;
+						movesstate=0;
+					} else if(moves[movescounter]==M_F1 || moves[movescounter]==M_F2 || moves[movescounter]==M_F3 || moves[movescounter]==M_F4 || moves[movescounter]==M_F5 || moves[movescounter]==M_F6 || moves[movescounter]==M_F7 || moves[movescounter]==M_F8 || moves[movescounter]==M_F9 || moves[movescounter]==M_F10 || moves[movescounter]==M_F11 || moves[movescounter]==M_F12 || moves[movescounter]==M_F13 || moves[movescounter]==M_F14 || moves[movescounter]==M_F15 || moves[movescounter]==M_F16) {
+						CELL_VMAX=11000;//13500
+						switch(moves[movescounter]) {
+							case M_F1: CELL_VMAX=5000; forward(1); break;//5000
+							case M_F2: CELL_VMAX=7000; forward(2); break;//8000
+							case M_F3: CELL_VMAX=9000; forward(3); break;//12000
+							case M_F4: forward(4); break;
+							case M_F5: forward(5); break;
+							case M_F6: forward(6); break;
+							case M_F7: forward(7); break;
+							case M_F8: forward(8); break;
+							case M_F9: forward(9); break;
+							case M_F10: forward(10); break;
+							case M_F11: forward(11); break;
+							case M_F12: forward(12); break;
+							case M_F13: forward(13); break;
+							case M_F14: forward(14); break;
+							case M_F15: forward(15); break;
+							case M_F16: forward(16); break;
+						}
+						movescounter++;
+					} else if(moves[movescounter]==M_L) {
+						gyrodest+=GYRO_90;
+						state=S_ROTATION;
+						movescounter++;
+					} else if(moves[movescounter]==M_LL) {
+						gyrodest+=2.0*GYRO_90;
+						state=S_ROTATION;
+						movescounter++;
+					} else if(moves[movescounter]==M_R) {
+						gyrodest-=GYRO_90;
+						state=S_ROTATION;
+						movescounter++;
+					} else if(moves[movescounter]==M_SCAN) {
+						//moves[0]=M_SCAN;
+						movesstate=nextscanstep(); // 0 albo 1 w zaleznosci czy kontynuujemy
+						movescounter=0;
+
+
+
+						if(movesstate) USART_SendData(USART3, 's');
+						else {
+							sprintf(buffer, "\n\rKoniec!\n\r");
+							UART_Send();
+						}
+					}
+				}
 			}
+
+			float error=gyrodest-gyroint;
+			iterm+=error;
+			clamp_iterm(&iterm, MAX_I);
+			speedRot=(int32_t)(Kp * error + Ki*itermL - Kd * (gyroint - errorlast));
+			errorlast=gyroint;
+
+			setMotors(speedTrans+speedRot+wallfix, speedTrans-speedRot-wallfix);
+
+
+			//przywrĂ�Âłcenie stanu diod:
+			GPIO_WriteBit(GPIOB, GPIO_Pin_11, statePL);
+			GPIO_WriteBit(GPIOA, GPIO_Pin_5, statePR);
+			GPIO_WriteBit(GPIOB, GPIO_Pin_10, stateBL);
+			GPIO_WriteBit(GPIOA, GPIO_Pin_4, stateBR);
 		}
-
-		float error=gyrodest-gyroint;
-		iterm+=error;
-		clamp_iterm(&iterm, MAX_I);
-		speedRot=(int32_t)(Kp * error + Ki*itermL - Kd * (gyroint - errorlast));
-		errorlast=gyroint;
-
-		setMotors(speedTrans+speedRot+wallfix, speedTrans-speedRot-wallfix);
 	}
+}
 
+// JOYSTICK
+void EXTI9_5_IRQHandler(void) {
+	// DOL
+	if(EXTI_GetITStatus(EXTI_Line6) != RESET) {
+		if(joystick_debounce1 == 0) {
+			DOWN_count++;
+			joystick_debounce1=JOYSTICK_DEBOUNCE_x2ms;
+		}
+		EXTI_ClearITPendingBit(EXTI_Line6);
+	}
+	// PRAWO
+	if(EXTI_GetITStatus(EXTI_Line7) != RESET) {
+		if(joystick_debounce1 == 0) {
+			RIGHT_count++;
+			joystick_debounce1=JOYSTICK_DEBOUNCE_x2ms;
+		}
+		EXTI_ClearITPendingBit(EXTI_Line7);
 
-	//przywrĂ�Âłcenie stanu diod:
-	GPIO_WriteBit(GPIOB, GPIO_Pin_11, statePL);
-	GPIO_WriteBit(GPIOA, GPIO_Pin_5, statePR);
-	GPIO_WriteBit(GPIOB, GPIO_Pin_10, stateBL);
-	GPIO_WriteBit(GPIOA, GPIO_Pin_4, stateBR);
+		oled_state=0;
+	}
+	// GORA
+	if(EXTI_GetITStatus(EXTI_Line8) != RESET) {
+		if(joystick_debounce1 == 0) {
+			// to rozwiazuje problem z joystickiem:
+			if(!GPIO_ReadInputDataBit(GPIOC, GPIO_Pin_6)) DOWN_count++;
+			else if(!GPIO_ReadInputDataBit(GPIOC, GPIO_Pin_7)) RIGHT_count++;
+			else if(!GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_11)) LEFT_count++;
+			else UP_count++;
+			joystick_debounce1=JOYSTICK_DEBOUNCE_x2ms;
+		}
+		EXTI_ClearITPendingBit(EXTI_Line8);
+	}
+}
+void EXTI15_10_IRQHandler(void) {
+	// LEWO
+	if(EXTI_GetITStatus(EXTI_Line11) != RESET) {
+		if(joystick_debounce1 == 0) {
+			LEFT_count++;
+			joystick_debounce1=JOYSTICK_DEBOUNCE_x2ms;
+		}
+		EXTI_ClearITPendingBit(EXTI_Line11);
+
+		OLED_Init();
+		oled_state=1;
+	}
+	// OK
+	if(EXTI_GetITStatus(EXTI_Line12) != RESET) {
+		if(joystick_debounce1 == 0) {
+			OK_count++;
+			joystick_debounce1=JOYSTICK_DEBOUNCE_x2ms;
+		}
+		EXTI_ClearITPendingBit(EXTI_Line12);
+	}
 }

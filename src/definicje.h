@@ -125,6 +125,7 @@ extern int32_t errorlastL;
 extern int32_t errorlastR;
 
 extern uint8_t sensors_state;
+extern volatile uint8_t PID_enabled;
 
 // definicje do latwego wlaczania i wylaczania diod od scian
 #define S_BL ADC_Channel_15
@@ -180,5 +181,7 @@ void avgcalc(void);
 void calibrate_gyro(void);
 void forward(uint8_t n);
 void TIM3_IRQHandler(void);
+void EXTI9_5_IRQHandler(void);
+void EXTI10_15_IRQHandler(void);
 
 #endif /* DEFINICJE_H_ */
