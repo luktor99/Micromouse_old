@@ -155,6 +155,17 @@ extern volatile uint8_t PID_enabled;
 #define BL 4
 #define PL 5
 
+//joystick
+#define JOYSTICK_DEBOUNCE_x2ms 100
+extern uint8_t UP_count, DOWN_count, LEFT_count, RIGHT_count, OK_count;
+extern uint16_t joystick_debounce1;
+
+//2ms counter
+extern uint32_t counter_2ms;
+
+// OLED
+extern uint8_t oled_state;
+
 
 
 // prototypy funkcji
@@ -183,5 +194,9 @@ void forward(uint8_t n);
 void TIM3_IRQHandler(void);
 void EXTI9_5_IRQHandler(void);
 void EXTI10_15_IRQHandler(void);
-
+void Joystick_Init(void);
+void JOY_UP(void);
+void JOY_DOWN(void);
+void JOY_LEFT(void);
+void JOY_RIGHT(void);
 #endif /* DEFINICJE_H_ */

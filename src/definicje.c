@@ -92,6 +92,16 @@ char buffer[50], bufferLiPo1[14], bufferLiPo2[7], bufferCharge[20];
 char bufferAX[20], bufferAY[20], bufferAZ[20], bufferGX[20], bufferGY[20], bufferGZ[20];
 char buffer1[10], buffer2[10], buffer3[10], buffer4[10], buffer5[10], buffer6[10];
 
+//joystick
+uint8_t UP_count=0, DOWN_count=0, LEFT_count=0, RIGHT_count=0, OK_count=0;
+uint16_t joystick_debounce1=0;
+
+//2ms counter
+uint32_t counter_2ms=0;
+
+//OLED
+uint8_t oled_state=1;
+
 void UART_Init(void) {
 
 	// PC10 - USART3_TX, PC11 - USART3_RX
@@ -552,4 +562,97 @@ void PID_Off(void) {
 	state=S_STOP;
 
 	sensors_state=0;
+}
+void Joystick_Init(void) {
+	// joystick...
+	// EXTI9_5_IRQHandler():
+	// PC6 - DOL
+	// PC7 - PRAWO
+	// PC8 - GORA
+	// EXTI15_1_IRQHandler():
+	// PA11 - LEWO
+	// PA12 - OK
+	GPIO_InitTypeDef GPIO_InitStruct;
+	GPIO_InitStruct.GPIO_Pin = GPIO_Pin_6 | GPIO_Pin_7 | GPIO_Pin_8;
+	GPIO_InitStruct.GPIO_Mode = GPIO_Mode_IPU;
+	GPIO_Init(GPIOC, &GPIO_InitStruct);
+	GPIO_InitStruct.GPIO_Pin = GPIO_Pin_11 | GPIO_Pin_12;
+	GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+	///------------------------------------
+
+	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_1);
+
+	NVIC_InitTypeDef NVIC_InitStruct;
+	NVIC_InitStruct.NVIC_IRQChannel = EXTI9_5_IRQn;
+	NVIC_InitStruct.NVIC_IRQChannelPreemptionPriority = 1;
+	NVIC_InitStruct.NVIC_IRQChannelSubPriority = 1;
+	NVIC_InitStruct.NVIC_IRQChannelCmd = ENABLE;
+	NVIC_Init(&NVIC_InitStruct);
+	NVIC_InitStruct.NVIC_IRQChannel = EXTI15_10_IRQn;
+	NVIC_InitStruct.NVIC_IRQChannelSubPriority = 2;
+	NVIC_Init(&NVIC_InitStruct);
+
+	GPIO_EXTILineConfig(GPIO_PortSourceGPIOC, GPIO_PinSource6);
+	GPIO_EXTILineConfig(GPIO_PortSourceGPIOC, GPIO_PinSource7);
+	GPIO_EXTILineConfig(GPIO_PortSourceGPIOC, GPIO_PinSource8);
+	GPIO_EXTILineConfig(GPIO_PortSourceGPIOA, GPIO_PinSource11);
+	GPIO_EXTILineConfig(GPIO_PortSourceGPIOA, GPIO_PinSource12);
+
+	EXTI_InitTypeDef EXTI_InitStruct;
+	EXTI_InitStruct.EXTI_Line = EXTI_Line6 | EXTI_Line7 | EXTI_Line8 | EXTI_Line11 | EXTI_Line12;
+	EXTI_InitStruct.EXTI_Mode = EXTI_Mode_Interrupt;
+	EXTI_InitStruct.EXTI_Trigger = EXTI_Trigger_Falling;
+	EXTI_InitStruct.EXTI_LineCmd = ENABLE;
+	EXTI_Init(&EXTI_InitStruct);
+}
+
+// JOYSTICK
+void EXTI9_5_IRQHandler(void) {
+	// DOL
+	if(EXTI_GetITStatus(EXTI_Line6) != RESET) {
+		if(joystick_debounce1 == 0) {
+			JOY_DOWN();
+			joystick_debounce1=JOYSTICK_DEBOUNCE_x2ms;
+		}
+		EXTI_ClearITPendingBit(EXTI_Line6);
+	}
+	// PRAWO
+	if(EXTI_GetITStatus(EXTI_Line7) != RESET) {
+		if(joystick_debounce1 == 0) {
+			JOY_RIGHT();
+			joystick_debounce1=JOYSTICK_DEBOUNCE_x2ms;
+		}
+		EXTI_ClearITPendingBit(EXTI_Line7);
+	}
+	// GORA
+	if(EXTI_GetITStatus(EXTI_Line8) != RESET) {
+		if(joystick_debounce1 == 0) {
+			// to rozwiazuje problem z joystickiem:
+			if(!GPIO_ReadInputDataBit(GPIOC, GPIO_Pin_6)) JOY_DOWN();
+			else if(!GPIO_ReadInputDataBit(GPIOC, GPIO_Pin_7)) JOY_RIGHT();
+			else if(!GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_11)) JOY_LEFT();
+			else JOY_UP();
+			joystick_debounce1=JOYSTICK_DEBOUNCE_x2ms;
+		}
+		EXTI_ClearITPendingBit(EXTI_Line8);
+	}
+}
+void EXTI15_10_IRQHandler(void) {
+	// LEWO
+	if(EXTI_GetITStatus(EXTI_Line11) != RESET) {
+		if(joystick_debounce1 == 0) {
+			JOY_LEFT();
+			joystick_debounce1=JOYSTICK_DEBOUNCE_x2ms;
+		}
+		EXTI_ClearITPendingBit(EXTI_Line11);
+	}
+	// OK
+	if(EXTI_GetITStatus(EXTI_Line12) != RESET) {
+		if(joystick_debounce1 == 0) {
+			//JOY_OK();
+			joystick_debounce1=JOYSTICK_DEBOUNCE_x2ms;
+		}
+		EXTI_ClearITPendingBit(EXTI_Line12);
+	}
 }
